@@ -39,6 +39,19 @@ y_valid_set = np.array(y_valid_set)
 x_test_set = np.array(x_test_set)
 y_test_set = np.array(y_test_set)
 
+# 데이터 무작위 섞기
+shuffle_indices = np.random.permutation(len(x_train_set))
+x_train_set = x_train_set[shuffle_indices]
+y_train_set = y_train_set[shuffle_indices]
+
+shuffle_indices = np.random.permutation(len(x_valid_set))
+x_valid_set = x_valid_set[shuffle_indices]
+y_valid_set = y_valid_set[shuffle_indices]
+
+shuffle_indices = np.random.permutation(len(x_test_set))
+x_test_set = x_test_set[shuffle_indices]
+y_test_set = y_test_set[shuffle_indices]
+
 print(f"x_train_set shape: {x_train_set.shape}, y_train_set shape: {y_train_set.shape}")
 print(f"x_valid_set shape: {x_valid_set.shape}, y_valid_set shape: {y_valid_set.shape}")
 print(f"x_test_set shape: {x_test_set.shape}, y_test_set shape: {y_test_set.shape}")
@@ -70,7 +83,7 @@ x_train_scaled = (x_train_reshaped - train_mean) / train_std
 x_valid_scaled = (x_valid_reshaped - train_mean) / train_std
 x_test_scaled = (x_test_reshaped - train_mean) / train_std
 
-# 5. 원-핫 인코딩 (One-Hot Encoding)
+# 원-핫 인코딩 (One-Hot Encoding)
 def one_hot_encode(labels, num_classes):
     return np.eye(num_classes)[labels]
 
