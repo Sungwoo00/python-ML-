@@ -23,6 +23,7 @@ for i in range(10):
     x_train_set.extend(x_train[indices[:per_class_train]])
     y_train_set.extend(y_train[indices[:per_class_train]])
     x_valid_set.extend(x_train[indices[per_class_train:per_class_train + per_class_valid]])
+    y_valid_set.extend(y_train[indices[per_class_train:per_class_train + per_class_valid]])
 
 for i in range(10):
     indices = np.where(y_test == i)[0][:per_class_test]
