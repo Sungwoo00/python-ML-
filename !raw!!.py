@@ -40,50 +40,50 @@ print(f"x_train_set shape: {x_train_set.shape}, y_train_set shape: {y_train_set.
 print(f"x_valid_set shape: {x_valid_set.shape}, y_valid_set shape: {y_valid_set.shape}")
 print(f"x_test_set shape: {x_test_set.shape}, y_test_set shape: {y_test_set.shape}")
 
-# 전처리 단계별 정확도 기록
-accuracy_results_valid = []
-accuracy_results_test = []
+# # 전처리 단계별 정확도 기록
+# accuracy_results_valid = []
+# accuracy_results_test = []
 
-def record_accuracy(step, x_train_processed, x_valid_processed, x_test_processed):
-    classifiers = {
-        "Logistic Regression": LogisticRegression(max_iter=1000),
-        "Decision Tree": DecisionTreeClassifier(max_depth=10),
-        "MLP": MLPClassifier(hidden_layer_sizes=(100,), max_iter=1000)
-    }
+# def record_accuracy(step, x_train_processed, x_valid_processed, x_test_processed):
+#     classifiers = {
+#         "Logistic Regression": LogisticRegression(max_iter=1000),
+#         "Decision Tree": DecisionTreeClassifier(max_depth=10),
+#         "MLP": MLPClassifier(hidden_layer_sizes=(100,), max_iter=1000)
+#     }
     
-    valid_accuracies = {}
-    test_accuracies = {}
-    for name, clf in classifiers.items():
-        clf.fit(x_train_processed, y_train_set)
+#     valid_accuracies = {}
+#     test_accuracies = {}
+#     for name, clf in classifiers.items():
+#         clf.fit(x_train_processed, y_train_set)
         
-        y_valid_pred = clf.predict(x_valid_processed)
-        valid_accuracy = accuracy_score(y_valid_set, y_valid_pred)
-        valid_accuracies[name] = valid_accuracy
+#         y_valid_pred = clf.predict(x_valid_processed)
+#         valid_accuracy = accuracy_score(y_valid_set, y_valid_pred)
+#         valid_accuracies[name] = valid_accuracy
         
-        y_test_pred = clf.predict(x_test_processed)
-        test_accuracy = accuracy_score(y_test_set, y_test_pred)
-        test_accuracies[name] = test_accuracy
+#         y_test_pred = clf.predict(x_test_processed)
+#         test_accuracy = accuracy_score(y_test_set, y_test_pred)
+#         test_accuracies[name] = test_accuracy
         
-    accuracy_results_valid.append((step, valid_accuracies))
-    accuracy_results_test.append((step, test_accuracies))
+#     accuracy_results_valid.append((step, valid_accuracies))
+#     accuracy_results_test.append((step, test_accuracies))
 
 x_train_raw = x_train_set
 x_valid_raw = x_valid_set
 x_test_raw = x_test_set
-record_accuracy("Raw", x_train_raw.reshape(x_train_raw.shape[0], -1), x_valid_raw.reshape(x_valid_raw.shape[0], -1), x_test_raw.reshape(x_test_raw.shape[0], -1))
+# record_accuracy("Raw", x_train_raw.reshape(x_train_raw.shape[0], -1), x_valid_raw.reshape(x_valid_raw.shape[0], -1), x_test_raw.reshape(x_test_raw.shape[0], -1))
 
 # 인식기별 파라미터 설정 
 def get_classifier_and_params():
     classifiers = {
-        'Logistic Regression': (
-            LogisticRegression, 
-            np.concatenate((np.arange(0.01, 0.1, 0.01), np.arange(0.1, 1.1, 0.1), 
-                            np.arange(10, 100, 10), np.arange(100, 1000 + 100, 100)))
-        ),
-        'Decision Tree': (
-            DecisionTreeClassifier, 
-            np.arange(1, 51, 1)
-        ),
+        # 'Logistic Regression': (
+        #     LogisticRegression, 
+        #     np.concatenate((np.arange(0.01, 0.1, 0.01), np.arange(0.1, 1.1, 0.1), 
+        #                     np.arange(10, 100, 10), np.arange(100, 1000 + 100, 100)))
+        # ),
+        # 'Decision Tree': (
+        #     DecisionTreeClassifier, 
+        #     np.arange(1, 51, 1)
+        # ),
         'MLP': (
             MLPClassifier, 
             [tuple([n]) for n in np.concatenate((np.arange(10, 100, 10), np.arange(100, 2100 , 100)))]
@@ -134,10 +134,32 @@ for idx, (name, (Classifier, params)) in enumerate(classifiers_params.items(), 1
     
     # 최적 파라미터 찾기: Train은 상승, Valid는 하락 추세를 보이는 지점
     optimal_param = params[0]
+    consecutive_drop_count = 0
+    min_diff = float('inf')
+    min_diff_idx = 0
+    last_single_drop_idx = -1
+
     for i in range(1, len(params)):
         if train_accuracies[i] > train_accuracies[i - 1] and valid_accuracies[i] < valid_accuracies[i - 1]:
-            optimal_param = params[i - 1]
-            break
+            consecutive_drop_count += 1
+            if consecutive_drop_count >= 2:
+                optimal_param = params[i - 1]
+        else:
+            consecutive_drop_count = 0
+
+        # 차이가 가장 적은 지점 추출
+        diff = abs(train_accuracies[i] - valid_accuracies[i])
+        if diff < min_diff:
+            min_diff = diff
+            min_diff_idx = i
+
+    # 두 번 연속된 감소가 없으면 최소한 한 번 감소한 지점 사용, 없으면 차이가 가장 적은 지점 사용
+    if consecutive_drop_count < 2:
+        if last_single_drop_idx != -1:
+            optimal_param = params[last_single_drop_idx]
+        else:
+            optimal_param = params[min_diff_idx]
+
     optimal_params[name] = optimal_param
 
     # 그래프 출력
@@ -225,4 +247,3 @@ plt.legend()
 
 plt.tight_layout()
 plt.show()
-#hi
