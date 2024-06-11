@@ -75,18 +75,18 @@ x_test_raw = x_test_set
 # 인식기별 파라미터 설정 
 def get_classifier_and_params():
     classifiers = {
-        # 'Logistic Regression': (
-        #     LogisticRegression, 
-        #     np.concatenate((np.arange(0.01, 0.1, 0.01), np.arange(0.1, 1.1, 0.1), 
-        #                     np.arange(10, 100, 10), np.arange(100, 1000 + 100, 100)))
-        # ),
-        # 'Decision Tree': (
-        #     DecisionTreeClassifier, 
-        #     np.arange(1, 51, 1)
-        # ),
+        'Logistic Regression': (
+            LogisticRegression, 
+            np.concatenate((np.arange(0.01, 0.1, 0.01), np.arange(0.1, 1.1, 0.1), np.arange(1, 10, 1),
+                            np.arange(10, 100, 10), np.arange(100, 1000 + 100, 100)))
+        ),
+        'Decision Tree': (
+            DecisionTreeClassifier, 
+            np.arange(1, 51, 1)
+        ),
         'MLP': (
             MLPClassifier, 
-            [tuple([n]) for n in np.concatenate((np.arange(10, 100, 10), np.arange(100, 2100 , 100)))]
+            [tuple([n]) for n in np.concatenate((np.arange(10, 100, 10), np.arange(100, 3100 , 100)))]
         )
     }
     return classifiers
@@ -103,20 +103,45 @@ def record_parameter_accuracy(classifier, param_name, param_values, x_train, y_t
         
         clf.fit(x_train, y_train)
         
-        # Train 정확도
+        # Train 정확도 계산
         y_train_pred = clf.predict(x_train)
         train_accuracy = accuracy_score(y_train, y_train_pred)
         train_accuracies.append(train_accuracy)
         
-        # Validation 정확도
+        # Validation 정확도 계산
         y_valid_pred = clf.predict(x_valid)
         valid_accuracy = accuracy_score(y_valid, y_valid_pred)
         valid_accuracies.append(valid_accuracy)
 
         print(f"{param_name} = {value}: Train Accuracy = {train_accuracy:.4f}, Validation Accuracy = {valid_accuracy:.4f}")
     
-    return train_accuracies, valid_accuracies
+    # 최적 파라미터 찾기
+    optimal_index = None
+    max_valid_accuracy = -1
+    declining = False
+    initial_decline_index = None
 
+    for i in range(1, len(valid_accuracies) - 1):
+        if valid_accuracies[i] < valid_accuracies[i - 1]:  # 유효성 검증 정확도가 하락하기 시작하면
+            if not declining:
+                declining = True
+                initial_decline_index = i - 1
+                max_valid_accuracy = valid_accuracies[initial_decline_index]
+            elif valid_accuracies[i] < max_valid_accuracy and train_accuracies[i] > train_accuracies[i - 1]:
+                optimal_index = initial_decline_index
+        elif declining and valid_accuracies[i] > max_valid_accuracy:
+            max_valid_accuracy = valid_accuracies[i]
+            initial_decline_index = i
+
+    if optimal_index is None:
+        print("No optimal parameter found.")
+        optimal_param = None
+    else:
+        optimal_param = param_values[optimal_index]
+    
+    return train_accuracies, valid_accuracies, optimal_param
+
+# 분류기와 파라미터 정보 가져오기
 classifiers_params = get_classifier_and_params()
 
 optimal_params = {}
@@ -124,49 +149,22 @@ optimal_params = {}
 plt.figure(figsize=(15, 5))
 
 for idx, (name, (Classifier, params)) in enumerate(classifiers_params.items(), 1):
-    # 정확도 기록
+    # 데이터셋 설정
     x_train = x_train_raw.reshape(x_train_raw.shape[0], -1)
     x_valid = x_valid_raw.reshape(x_valid_raw.shape[0], -1)
     y_train = y_train_set
     y_valid = y_valid_set
     
-    train_accuracies, valid_accuracies = record_parameter_accuracy(Classifier, 'hidden_layer_sizes' if name == 'MLP' else 'C' if name == 'Logistic Regression' else 'max_depth', params, x_train, y_train, x_valid, y_valid)
-    
-    # 최적 파라미터 찾기: Train은 상승, Valid는 하락 추세를 보이는 지점
-    optimal_param = params[0]
-    consecutive_drop_count = 0
-    min_diff = float('inf')
-    min_diff_idx = 0
-    last_single_drop_idx = -1
-
-    for i in range(1, len(params)):
-        if train_accuracies[i] > train_accuracies[i - 1] and valid_accuracies[i] < valid_accuracies[i - 1]:
-            consecutive_drop_count += 1
-            if consecutive_drop_count >= 2:
-                optimal_param = params[i - 1]
-        else:
-            consecutive_drop_count = 0
-
-        # 차이가 가장 적은 지점 추출
-        diff = abs(train_accuracies[i] - valid_accuracies[i])
-        if diff < min_diff:
-            min_diff = diff
-            min_diff_idx = i
-
-    # 두 번 연속된 감소가 없으면 최소한 한 번 감소한 지점 사용, 없으면 차이가 가장 적은 지점 사용
-    if consecutive_drop_count < 2:
-        if last_single_drop_idx != -1:
-            optimal_param = params[last_single_drop_idx]
-        else:
-            optimal_param = params[min_diff_idx]
-
+    # 정확도 기록 및 최적 파라미터 찾기
+    param_name = 'hidden_layer_sizes' if name == 'MLP' else 'C' if name == 'Logistic Regression' else 'max_depth'
+    train_accuracies, valid_accuracies, optimal_param = record_parameter_accuracy(Classifier, param_name, params, x_train, y_train, x_valid, y_valid)
     optimal_params[name] = optimal_param
 
     # 그래프 출력
-    plt.subplot(1, 3, idx)
+    plt.subplot(1, len(classifiers_params), idx)
     plt.plot(params, train_accuracies, marker='o', markersize=2, linestyle='-', color='r', label='Train')
     plt.plot(params, valid_accuracies, marker='o', markersize=2, linestyle='-', color='b', label='Validation')
-    plt.axvline(x=optimal_param, color='orange', linestyle='--')
+    plt.axvline(x=optimal_param, color='orange', linestyle='--', label=f'Optimal {optimal_param}')
     plt.xlabel('C value' if name == 'Logistic Regression' else 'Max Depth' if name == 'Decision Tree' else 'Hidden Layer Sizes')
     plt.ylabel('Accuracy')
     plt.title(name)
@@ -203,7 +201,7 @@ def plot_classification_report(y_true, y_pred, class_names, title):
 for name, optimal_param in optimal_params.items():
     Classifier, _ = classifiers_params[name]
     if name == 'MLP':
-        clf = Classifier(hidden_layer_sizes=optimal_param, max_iter=1000)
+        clf = Classifier(hidden_layer_sizes=optimal_param)
     elif name == 'Logistic Regression':
         clf = Classifier(C=optimal_param, max_iter=1000)
     elif name == 'Decision Tree':
