@@ -2,8 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score
 
 # 클래스 이름과 데이터 개수 설정
@@ -41,57 +39,41 @@ print(f"x_valid_set shape: {x_valid_set.shape}, y_valid_set shape: {y_valid_set.
 print(f"x_test_set shape: {x_test_set.shape}, y_test_set shape: {y_test_set.shape}")
 
 # 전처리 단계별 정확도 기록
-accuracy_results_valid = []
 accuracy_results_test = []
+steps = []
 
-def record_accuracy(step, x_train_processed, x_valid_processed, x_test_processed):
-    classifiers = {
-        "Logistic Regression": LogisticRegression(max_iter=1000),
-        "Decision Tree": DecisionTreeClassifier(max_depth=10),
-        "MLP": MLPClassifier(hidden_layer_sizes=(100,), max_iter=1000)
-    }
+def record_accuracy(step, x_train_processed, x_test_processed):
+    clf = LogisticRegression(max_iter=1000)
     
-    valid_accuracies = {}
-    test_accuracies = {}
-    for name, clf in classifiers.items():
-        clf.fit(x_train_processed, y_train_set)
-        
-        y_valid_pred = clf.predict(x_valid_processed)
-        valid_accuracy = accuracy_score(y_valid_set, y_valid_pred)
-        valid_accuracies[name] = valid_accuracy
-        
-        y_test_pred = clf.predict(x_test_processed)
-        test_accuracy = accuracy_score(y_test_set, y_test_pred)
-        test_accuracies[name] = test_accuracy
-        
-    accuracy_results_valid.append((step, valid_accuracies))
-    accuracy_results_test.append((step, test_accuracies))
+    clf.fit(x_train_processed, y_train_set)
+    
+    y_test_pred = clf.predict(x_test_processed)
+    test_accuracy = accuracy_score(y_test_set, y_test_pred)
+    
+    accuracy_results_test.append((step, test_accuracy))
+    steps.append(step)
 
 # 0. 원본 데이터 (정규화 전)
 x_train_raw = x_train_set
-x_valid_raw = x_valid_set
 x_test_raw = x_test_set
-record_accuracy("Raw", x_train_raw.reshape(x_train_raw.shape[0], -1), x_valid_raw.reshape(x_valid_raw.shape[0], -1), x_test_raw.reshape(x_test_raw.shape[0], -1))
+record_accuracy("Raw", x_train_raw.reshape(x_train_raw.shape[0], -1), x_test_raw.reshape(x_test_raw.shape[0], -1))
 
 # 1. 정규화
 x_train_normalized = x_train_set / 255.0
-x_valid_normalized = x_valid_set / 255.0
 x_test_normalized = x_test_set / 255.0
-record_accuracy("Normalization", x_train_normalized.reshape(x_train_normalized.shape[0], -1), x_valid_normalized.reshape(x_valid_normalized.shape[0], -1), x_test_normalized.reshape(x_test_normalized.shape[0], -1))
+record_accuracy("Normalization", x_train_normalized.reshape(x_train_normalized.shape[0], -1), x_test_normalized.reshape(x_test_normalized.shape[0], -1))
 
 # 2. 가우시안 블러로 노이즈 제거
 x_train_blurred = np.array([cv2.GaussianBlur(image, (3, 3), 0) for image in x_train_normalized])
-x_valid_blurred = np.array([cv2.GaussianBlur(image, (3, 3), 0) for image in x_valid_normalized])
 x_test_blurred = np.array([cv2.GaussianBlur(image, (3, 3), 0) for image in x_test_normalized])
-record_accuracy("Gaussian Blur", x_train_blurred.reshape(x_train_blurred.shape[0], -1), x_valid_blurred.reshape(x_valid_blurred.shape[0], -1), x_test_blurred.reshape(x_test_blurred.shape[0], -1))
+record_accuracy("Gaussian Blur", x_train_blurred.reshape(x_train_blurred.shape[0], -1), x_test_blurred.reshape(x_test_blurred.shape[0], -1))
 
 # 3. 데이터 표준화 (Standardization)
 train_mean = np.mean(x_train_blurred.reshape(x_train_blurred.shape[0], -1), axis=0)
 train_std = np.std(x_train_blurred.reshape(x_train_blurred.shape[0], -1), axis=0)
 x_train_standardized = (x_train_blurred.reshape(x_train_blurred.shape[0], -1) - train_mean) / train_std
-x_valid_standardized = (x_valid_blurred.reshape(x_valid_blurred.shape[0], -1) - train_mean) / train_std
 x_test_standardized = (x_test_blurred.reshape(x_test_blurred.shape[0], -1) - train_mean) / train_std
-record_accuracy("Standardization", x_train_standardized, x_valid_standardized, x_test_standardized)
+record_accuracy("Standardization", x_train_standardized, x_test_standardized)
 
 # 4. 윤곽선 검출 및 구역별 평균 픽셀 값 계산 함수
 def calculate_average_pixel_values(images, n):
@@ -120,48 +102,18 @@ def calculate_average_pixel_values(images, n):
 
 # 윤곽선 검출 및 구역별 평균 픽셀 값 계산 적용
 x_train_contour = calculate_average_pixel_values(x_train_standardized.reshape(-1, 28, 28), n)
-x_valid_contour = calculate_average_pixel_values(x_valid_standardized.reshape(-1, 28, 28), n)
 x_test_contour = calculate_average_pixel_values(x_test_standardized.reshape(-1, 28, 28), n)
-record_accuracy("Contour and Pixel Average", x_train_contour, x_valid_contour, x_test_contour)
+record_accuracy("Contour and Pixel Average", x_train_contour, x_test_contour)
 
-# 정확도 그래프 출력
-classifiers = ["Logistic Regression", "Decision Tree", "MLP"]
-steps = [result[0] for result in accuracy_results_valid]
-
-# 각 인식기별 그래프 생성
-plt.figure(figsize=(10, 10))
-
-for i, name in enumerate(classifiers):
-    plt.subplot(2, 2, i+1)
-    
-    train_accuracies = [result[1][name] for result in accuracy_results_valid]
-    
-    plt.plot(steps, train_accuracies, marker='o', linestyle='-', label='Train Accuracy')
-
-    plt.xlabel('Preprocessing step')
-    plt.ylabel('Accuracy')
-    plt.title(f'{name} - Accuracy at each preprocessing step')
-    plt.legend()
-    plt.grid(True)
-    plt.xticks(rotation=15) 
-
-plt.tight_layout()
-plt.show()
-
-# 정확도 표 생성 및 출력
-plt.figure(figsize=(10, 4))
-plt.axis('off')
-
-# 표 내용 생성
-table_data = [['Preprocessing step'] + classifiers]
-for j, step in enumerate(steps):
-    row = [step]
-    for name in classifiers:
-        row.append(accuracy_results_valid[j][1][name])
-    table_data.append(row)
-
-# 표 생성
-plt.table(cellText=table_data, colLabels=['Preprocessing step'] + classifiers, loc='center')
-
+# 로지스틱 회귀 인식기 적용한 전처리 과정별 정확도 그래프 출력
+steps, test_accuracies = zip(*accuracy_results_test)
+plt.figure(figsize=(10, 6))
+plt.plot(steps, test_accuracies, marker='o', label='Test Accuracy', linestyle='-')
+plt.xlabel('Preprocessing step')
+plt.ylabel('Accuracy')
+plt.title('Logistic Regression - Accuracy at each preprocessing step')
+plt.legend()
+plt.grid(True)
+plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
